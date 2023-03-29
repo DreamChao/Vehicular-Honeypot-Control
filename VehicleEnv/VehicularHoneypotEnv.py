@@ -265,18 +265,18 @@ class VehicularHoneypotEnv():
     def choose_action(self):
         pass
 
-# if __name__ == '__main__':
-#     env = VehicularHoneypotEnv()
-#     obs = env.reset()
-#     step = 0
-#     while True:
-#         step += 1
-#         print("-----------step:", step)
-#         print("------")
-#         action = np.random.randint(4)
-#         print("action:",action)
-#         obs, reward, done, _ = env.step(action)
-#         if done:
-#             break
-#         print(f"state : {obs}, reward : {reward}")
-#
+if __name__ == '__main__':
+    env = VehicularHoneypotEnv()
+    obs = env.reset()
+    step = 0
+    while True:
+        step += 1
+        print("-----------step:", step)
+        print("------")
+        action = np.random.randint(4)
+        print("action:",action)
+        obs, reward, done, _ = env.step(action)
+        if done:
+            break
+        print(f"state : {obs}, reward : {reward}")
+
