@@ -136,7 +136,7 @@ class VehicularHoneypotEnv():
 
         """
         这里的问题是：如何进行攻击发生的判断：
-        方案1：用 攻击者发动攻击的概率 和 当前环境安全风险进行对比来确定是否发生攻击
+        方案1：用攻击者发动攻击的概率 和 当前环境安全风险进行对比来确定是否发生攻击
         方案2：根据当前环境的安全风险来随机生成 是否发动攻击。        
 
         attack_occurred = np.random.choice([True, False], p=[0.1, 0.9])
@@ -156,7 +156,7 @@ class VehicularHoneypotEnv():
         # 确定攻击者是否发动攻击
         self.attacker_launched = np.random.choice([True, False], p=[1 - self.security_risk, self.security_risk])
         print("attacker_launched:", self.attacker_launched)
-        # 如果发动攻击了，那么久选择攻击方式，并根据 defender 采取的 action 以及 atacker 的 method 来更新 reward
+        # 如果发动攻击了，那么就选择攻击方式，并根据 defender 采取的 action 以及 atacker 的 method 来更新 reward
         if self.attacker_launched:
             self.attack_method = np.random.choice(['low', 'medium', 'high'])  # 随机选择攻击方式
             print("attack_method:", self.attack_method)
