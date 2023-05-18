@@ -9,7 +9,7 @@ import numpy as np
 import gym
 import roboschool
 
-from meta_algos.PPO import PPO
+from meta_algos.reptilePPO import PPO
 
 ################################### Training ###################################
 def train():

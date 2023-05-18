@@ -2,118 +2,238 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import gym
+import numpy as np
+import env.VehicleEnv.VehicularHoneypotEnv
 
-class Policy(nn.Module):
-    def __init__(self, obs_dim, action_dim, hidden_dim):
-        super(Policy, self).__init__()
-        self.obs_dim = obs_dim
-        self.action_dim = action_dim
-        self.hidden_dim = hidden_dim
-        self.fc1 = nn.Linear(obs_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, action_dim)
-        self.fc4 = nn.Linear(hidden_dim, 1)
-        self.relu = nn.ReLU()
-        self.softmax = nn.softmax(dim=-1)
-#策略网络与价值网络都是3层结构，且共享前两层
-    def forward(self, obs):
-        x = self.relu(self.fc1(obs))
-        x = self.relu(self.fc2(x))
-        action_prob = self.softmax(self.fc3(x))#策略网络输出
-        value = self.fc4(x)#价值网络输出
-        return action_prob, value
+# 定义环境和任务
+env = gym.make('CartPole-v0')
+state_dim = env.observation_space.shape[0] #
+action_dim = env.action_space.n #四个动作
 
+# 定义元策略网络
+class MetaPolicy(nn.Module):
+    def __init__(self, state_dim, action_dim, hidden_size=32):
+        super(MetaPolicy, self).__init__()
+        self.fc1 = nn.Linear(state_dim, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, hidden_size)
+        self.fc3 = nn.Linear(hidden_size, action_dim)
+
+    def forward(self, x):
+        x = torch.relu(self.fc1(x))
+        x = torch.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
+
+# 定义PPO算法
 class PPO:
-    def __init__(self, obs_dim, action_dim, hidden_dim, lr, betas, gamma, K, eps_clip):
-        self.policy = Policy(obs_dim, action_dim, hidden_dim)
-        self.optimizer = optim.Adam(self.policy.parameters(), lr=lr, betas=betas)
-        self.gamma = gamma#折扣率，计算return时使用
-        self.K = K#这是什么？
-        self.eps_clip = eps_clip
+    def __init__(self, state_dim, action_dim, hidden_size=32, lr=1e-3):
+        self.policy = MetaPolicy(state_dim, action_dim, hidden_size)
+        self.optimizer = optim.Adam(self.policy.parameters(), lr=lr)
 
-    def select_action(self, obs):
-        obs = torch.FloatTensor(obs).unsqueeze(0)
-        action_prob, _ = self.policy(obs)
-        action_dist = torch.distributions.Normal(action_prob, 1)
-        action = action_dist.sample()
-        return action.item()
+    def train(self, episodes, K=3, eps=0.2, gamma=0.99, lam=0.95):
+        for episode in range(episodes):
+            state = env.reset()
+            done = False
+            rewards = []
+            log_probs = []
+            values = []
+            while not done:#这当作一个回合
+                # 采样动作
+                state = torch.FloatTensor(state)
+                action_logits = self.policy(state)
+                dist = torch.distributions.Categorical(logits=action_logits)
+                action = dist.sample()
+                log_prob = dist.log_prob(action)
+                value = self.policy(state).detach()
 
-    def update(self, obs, action, old_action_prob, advantage, target_value):
-        obs = torch.FloatTensor(obs)
-        action = torch.FloatTensor([action])
-        old_action_prob = torch.FloatTensor([old_action_prob])
-        advantage = torch.FloatTensor([advantage])
-        target_value = torch.FloatTensor([target_value])
+                # 执行动作
+                next_state, reward, done, _ = env.step(action.item())
 
-        action_prob, value = self.policy(obs)
-        action_dist = torch.distributions.Normal(action_prob, 1)
-        entropy = action_dist.entropy().mean()
+                # 保存经验
+                rewards.append(reward)
+                log_probs.append(log_prob)
+                values.append(value)
 
-        # calculate advantage
-        delta = target_value - value
-        delta = delta.detach().numpy()
-        advantage_lst = []
-        advantage = 0
-        for i in reversed(range(len(delta))):
-            advantage = self.gamma * self.K * advantage + delta[i][0]
-            advantage_lst.append([advantage])
-        advantage_lst.reverse()
-        advantage = torch.FloatTensor(advantage_lst)
+                state = next_state
 
-        # calculate surrogate loss
-        ratio = torch.exp(action_dist.log_prob(action) - torch.log(old_action_prob))
-        surr1 = ratio * advantage
-        surr2 = torch.clamp(ratio, 1 - self.eps_clip, 1 + self.eps_clip) * advantage
-        policy_loss = -torch.min(surr1, surr2).mean()
+            # 计算回报和优势值
+            returns = []
+            advantages = []
+            G = 0
+            for r in reversed(rewards):#reversed反转，从后往前遍历
+                G = gamma * G + r
+                returns.insert(0, G)#returns.insert(0, G)是将当前时间步的回报累积和G插入到returns列表的最前面（即索引为0的位置），并将原有的元素向后移动。相当于头插法，顺序又反过来了
+            returns = torch.FloatTensor(returns)
+            for t in range(len(rewards)):
+                advantage = returns[t] - values[t]#Advantage = G_t - V_t，其中G_t是从时间步t开始的回报的累积和，V_t是策略网络在时间步t处的值函数预测值。python列表是可以跟pytorch张量做运算的，确保数据类型一致就可。
+                advantages.append(advantage)
+            #advantages = torch.FloatTensor(advantages)#创建一个新的PyTorch张量，其中的元素值和advantages列表中的元素值相同，但是数据类型为float32。
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)#对advantages张量进行标准化处理，使其均值为0，标准差为1
+            #使用advantages.std()计算advantages张量的标准差
+            #使用advantages.mean()计算advantage张量的均值
 
-        # calculate value loss
-        value_loss = nn.MSELoss()(value, target_value)
+            # 更新策略
+            for k in range(K):
+                for i in range(len(rewards)):
+                    state = torch.FloatTensor(state) #貌似没有状态更新，不需要更新，就是从当前状态开始的
+                    action_logits = self.policy(state)
+                    dist = torch.distributions.Categorical(logits=action_logits)
+                    action = dist.sample()
+                    log_prob = dist.log_prob(action)
+                    value = self.policy(state).detach()
 
-        # update policy
-        self.optimizer.zero_grad()
-        (policy_loss + 0.5 * value_loss - 0.01 * entropy).backward()
-        self.optimizer.step()
+                    ratio = torch.exp(log_prob - log_probs[i])
+                    advantage = advantages[i]
 
+                    # 计算PPO损失
+                    surr1 = ratio * advantage
+                    surr2 = torch.clamp(ratio, 1 - eps, 1 + eps) * advantage
+                    policy_loss = -torch.min(surr1, surr2).mean()
+                    value_loss = nn.MSELoss()(value, returns[i])
+
+                    # 计算总损失
+                    loss = policy_loss + 0.5 * value_loss
+
+                    # 反向传播更新参数
+                    self.optimizer.zero_grad()
+                    loss.backward()
+                    self.optimizer.step()
+
+# 定义MAML算法
 class MAML:
-    def __init__(self, policy, alpha, beta, num_tasks):
-        self.policy = policy
+    def __init__(self, state_dim, action_dim, hidden_size=32, alpha=0.1, beta=0.1, lr=1e-3):
+        self.policy = MetaPolicy(state_dim, action_dim, hidden_size)
         self.alpha = alpha
         self.beta = beta
-        self.num_tasks = num_tasks
+        self.optimizer = optim.Adam(self.policy.parameters(), lr=lr)
 
-    def meta_update(self, envs):
-        for env in envs:
-            obs = env.reset()
-            ppo = PPO(obs_dim=env.observation_space.shape[0], action_dim=env.action_space.shape[0],
-                      hidden_dim=64, lr=0.001, betas=(0.9, 0.999), gamma=0.99, K=0.5, eps_clip=0.2)
-            for i in range(self.alpha):
-                action = ppo.select_action(obs)
-                new_obs, reward, done, _ = env.step(action)
-                old_action_prob, value = ppo.policy(torch.FloatTensor(obs))
-                advantage = reward + (1 - done) * ppo.gamma * ppo.policy(torch.FloatTensor(new_obs))[1] - value.item()
-                ppo.update(obs, action, old_action_prob.item(), advantage, ppo.policy(torch.FloatTensor(obs))[1].item())
-                obs = new_obs
-                if done:
-                    obs = env.reset()
+    def fast_adapt(self, task, K=3, eps=0.2, gamma=0.99, lam=0.95):
+        state_dim, action_dim = task.observation_space.shape[0], task.action_space.n
 
-            # calculate task loss
-            task_loss = 0
-            for i in range(self.beta):
-                action = ppo.select_action(obs)
-                new_obs, reward, done, _ = env.step(action)
-                old_action_prob, value = ppo.policy(torch.FloatTensor(obs))
-                advantage = reward + (1 - done) * ppo.gamma * ppo.policy(torch.FloatTensor(new_obs))[1] - value.item()
-                task_loss += advantage
-                obs = new_obs
-                if done:
-                    obs = env.reset()
+        # 复制元策略网络参数作为快速适应的起点
+        policy = MetaPolicy(state_dim, action_dim)
+        policy.load_state_dict(self.policy.state_dict())
 
-            # calculate meta gradients
-            self.policy.zero_grad()
-            task_loss.backward()
-        for param in self.policy.parameters():
-            param.grad = param.grad / self.num_tasks
+        # 定义PPO算法
+        ppo = PPO(state_dim, action_dim)
 
-        return self.policy.parameters()
+        # 在当前任务上进行快速适应
+        for k in range(K):
+            state = task.reset()
+            done = False
+            rewards = []
+            log_probs = []
+            values = []
+            while not done:
+                # 采样动作
+                state = torch.FloatTensor(state)
+                action_logits = policy(state)
+                dist = torch.distributions.Categorical(logits=action_logits)
+                action = dist.sample()
+                log_prob = dist.log_prob(action)
+                value = policy(state).detach()
 
-# example usage
+                # 执行动作
+                next_state, reward, done, _ = task.step(action.item())
+
+                # 保存经验
+                rewards.append(reward)
+                log_probs.append(log_prob)
+                values.append(value)
+
+                state = next_state
+
+            # 计算回报和优势值
+            returns = []
+            advantages = []
+            G = 0
+            for r in reversed(rewards):
+                G = gamma * G + r
+                returns.insert(0, G)
+            #returns = torch.FloatTensor(returns)
+            for t in range(len(rewards)):
+                advantage = returns[t] - values[t]#
+                advantages.append(advantage)#advantages是列表
+            advantages = torch.FloatTensor([item.detach().numpy() for item in advantages])#服了
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+
+            # 更新策略
+            for i in range(len(rewards)):
+                state = torch.FloatTensor(state)
+                action_logits = policy(state)
+                dist = torch.distributions.Categorical(logits=action_logits)
+                action = dist.sample()
+                log_prob = dist.log_prob(action)
+                value = policy(state).detach()
+
+                ratio = torch.exp(log_prob - log_probs[i])
+                advantage = advantages[i]
+
+                # 计算PPO损失
+                surr1 = ratio * advantage
+                surr2 = torch.clamp(ratio, 1 - eps, 1 + eps) * advantage
+                policy_loss = -torch.min(surr1, surr2).mean()
+
+                #value = torch.tensor([value])
+                returns_i = torch.tensor([returns[i]])
+                value_loss = nn.MSELoss()(value, returns_i)
+
+                # 计算总损失
+                loss = policy_loss + 0.5 * value_loss
+
+                # 反向传播更新参数
+                ppo.optimizer.zero_grad()
+                loss.backward()
+                ppo.optimizer.step()
+
+        # 计算元梯度
+        meta_grads = {}
+        for name, parameter in self.policy.named_parameters():
+            meta_grads[name] = (parameter - ppo.policy.state_dict()[name]) / self.alpha #alpha是元学习率，为啥子元梯度是这个样子
+
+        return meta_grads
+
+    def train(self, tasks, episodes, K=3, eps=0.2, gamma=0.99, lam=0.95):
+        for episode in range(episodes):
+            # 在所有任务上进行元训练
+            meta_grads = {}
+            meta_all_grads = {}
+            for task in tasks:
+                meta_all_grads[task] = self.fast_adapt(task, K, eps, gamma, lam)
+
+            #字典meta_grads的键是任务名称，值则是字典（包含各个参数名称及其值）
+
+            # 计算元梯度的平均值，意思是所有任务的元梯度都加起来求个平均
+            for name, parameter in self.policy.named_parameters():
+                meta_grads[name] = torch.stack([grads[name] for grads in meta_all_grads.values()]).mean(dim=0)
+
+            # 更新元策略网络，这个有问题吗
+            for name, parameter in self.policy.named_parameters():
+                parameter.grad = meta_grads[name]
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+
+# 定义训练集和测试集
+train_tasks = [gym.make('CartPole-v0') for _ in range(10)]
+test_tasks = [gym.make('CartPole-v0') for _ in range(10)]
+
+# 训练MAML算法
+maml = MAML(state_dim, action_dim)
+maml.train(train_tasks, episodes=1000)
+
+# 在测试集上测试MAML算法
+total_rewards = []
+for task in test_tasks:
+    state = task.reset()
+    done = False
+    rewards = 0
+    while not done:
+        state = torch.FloatTensor(state)
+        action_logits = maml.policy(state)
+        dist = torch.distributions.Categorical(logits=action_logits)
+        action = dist.sample()
+        next_state, reward, done, _ = task.step(action.item())
+        rewards += reward
+        state = next_state
+    total_rewards.append(rewards)
+print('Average reward: {}'.format(np.mean(total_rewards)))

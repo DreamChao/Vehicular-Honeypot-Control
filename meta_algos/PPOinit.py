@@ -119,9 +119,8 @@ class ActorCritic(nn.Module):
         state_values = self.critic(state)
         
         return action_logprobs, state_values, dist_entropy
-
-
-class PPO:
+    
+class reptilePPO:
     def __init__(self, state_dim, action_dim, lr_actor, lr_critic, gamma, K_epochs, eps_clip, has_continuous_action_space, action_std_init=0.6):
 
         self.has_continuous_action_space = has_continuous_action_space
@@ -256,7 +255,3 @@ class PPO:
     def load(self, checkpoint_path):
         self.policy_old.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
         self.policy.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
-        
-        
-       
-
