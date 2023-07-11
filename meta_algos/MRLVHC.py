@@ -3,12 +3,19 @@ import torch.nn as nn
 import torch.optim as optim
 import gym
 import numpy as np
-import env.VehicleEnv.VehicularHoneypotEnv
+from env.VehicularHoneypotEnv import VehicularHoneypotEnv
+
+#import env.VehicleEnv.VehicularHoneypotEnv
 
 # 定义环境和任务
-env = gym.make('CartPole-v0')
-state_dim = env.observation_space.shape[0] #
+#env = gym.make('CartPole-v0')
+env = VehicularHoneypotEnv()
+state_dim = env.observation_space['prev_action'].n + env.observation_space['security_risk'].shape[0] + env.observation_space['residual_resource'].shape[0]
+#state_dim = env.observation_space.shape[0] #
 action_dim = env.action_space.n #四个动作
+
+print("state_dim:", state_dim)
+print("action_dim:", action_dim)
 
 # 定义元策略网络
 class MetaPolicy(nn.Module):
@@ -154,7 +161,7 @@ class MAML:
             for t in range(len(rewards)):
                 advantage = returns[t] - values[t]#
                 advantages.append(advantage)#advantages是列表
-            advantages = torch.FloatTensor([item.detach().numpy() for item in advantages])#服了
+            advantages = torch.FloatTensor([item.detach().numpy() for item in advantages])
             advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
             # 更新策略
@@ -214,12 +221,12 @@ class MAML:
             self.optimizer.zero_grad()
 
 # 定义训练集和测试集
-train_tasks = [gym.make('CartPole-v0') for _ in range(10)]
-test_tasks = [gym.make('CartPole-v0') for _ in range(10)]
+# train_tasks = [gym.make('CartPole-v0') for _ in range(10)]
+# test_tasks = [gym.make('CartPole-v0') for _ in range(10)]
 
 # 训练MAML算法
 maml = MAML(state_dim, action_dim)
-maml.train(train_tasks, episodes=1000)
+# maml.train(train_tasks, episodes=1000)
 
 # 在测试集上测试MAML算法
 total_rewards = []
