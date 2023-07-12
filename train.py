@@ -7,6 +7,7 @@ import torch
 import numpy as np
 
 import gym
+from roboschool import cpp_household as cpp_household
 import roboschool
 
 from meta_algos.reptilePPO import PPO
