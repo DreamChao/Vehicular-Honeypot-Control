@@ -144,12 +144,8 @@ class VehicularHoneypotEnv(gym.Env):
         else:
             if action == 0:
                 reward = 3
-            elif action == 1:
-                reward = -1
-            elif action == 2:
-                reward = -2
-            elif action == 3:
-                reward = -3
+            else:
+                reward = -action
             observation = {
                 'prev_action': action,
                 'security_risk': self.security_risk,
