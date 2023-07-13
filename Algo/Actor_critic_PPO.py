@@ -52,7 +52,7 @@ class ActorCriticPPO:
         returns = (returns - np.mean(returns)) / (np.std(returns) + 1e-8)
         return returns
 
-    def train(self, episodes=100):
+    def train(self, episodes=1000):
         rewards_history = []
         for episode in range(episodes):
             state = self.env.reset()
@@ -111,9 +111,10 @@ class ActorCriticPPO:
         plt.plot(rewards_history)
         plt.xlabel('Episode')
         plt.ylabel('Total Reward')
+        plt.savefig('AC_PPO.png', dpi=300)
         plt.show()
 
 if __name__ == "__main__":
     env = VehicularHoneypotEnv()
     agent = ActorCriticPPO(env)
-    agent.train(episodes=100)
+    agent.train(episodes=1000)

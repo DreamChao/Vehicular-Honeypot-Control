@@ -96,8 +96,8 @@ class DQNAgent:
         plt.xlabel('Episode')
         plt.ylabel('Total Reward')
         plt.title('DQN Training')
-
-    plt.show()
+        plt.savefig('DRL.png', dpi=300)
+        plt.show()
 
 
 if __name__ == "__main__":
