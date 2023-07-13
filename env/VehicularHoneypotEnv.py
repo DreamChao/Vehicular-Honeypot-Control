@@ -32,11 +32,16 @@ class VehicularHoneypotEnv(gym.Env):
         也就是说，在这一个 action 中，智能体的奖励、环境状态的变化等
         """
         # observation space
-        self.observation_space = spaces.Dict({
-            'prev_action': spaces.Discrete(4),  # defender上一次的行动
-            'security_risk': spaces.Box(low=0, high=1, shape=(1,), dtype=np.float32),  # 车联网环境给的安全危险程度
-            'residual_resource': spaces.Box(low=0, high=100, shape=(1,), dtype=np.int32)  # 车辆的剩余资源
-        })
+        # self.observation_space = spaces.Dict({
+        #     'prev_action': spaces.Discrete(4),  # defender上一次的行动
+        #     'security_risk': spaces.Box(low=0, high=1, shape=(1,), dtype=np.float32),  # 车联网环境给的安全危险程度
+        #     'residual_resource': spaces.Box(low=0, high=100, shape=(1,), dtype=np.int32)  # 车辆的剩余资源
+        # })
+        self.observation_space = spaces.Tuple((
+            spaces.Discrete(4),  # defender上一次的行动
+            spaces.Box(low=0, high=1, shape=(1,), dtype=np.float32),  # 车联网环境给的安全危险程度
+            spaces.Box(low=0, high=100, shape=(1,), dtype=np.int32)  # 车辆的剩余资源
+        ))
 
         # action space
         self.action_space = spaces.Discrete(4)  # 动作包括不开启蜜罐、低交互蜜罐、中等交互蜜罐、高交互蜜罐
@@ -48,7 +53,7 @@ class VehicularHoneypotEnv(gym.Env):
         self.residual_resource = 100    # 车辆剩余资源
         self.resource_upper_bound = 100  # 车辆资源的上限
         self.resource_lower_bound = 10  # 车辆资源的下限
-        self.prev_action = None     #上一次的行动
+        self.prev_action = 0     #上一次的行动
         self.attack_captured = False    # 攻击者是否被捕获
         self.attack_launched = False    # 攻击者是否发起攻击
         '''
@@ -85,16 +90,11 @@ class VehicularHoneypotEnv(gym.Env):
         print("residual_resource:", self.residual_resource)
 
         if self.residual_resource < self.resource_lower_bound:
-            return {
-                'observation': {
-                    'prev_action': action,
-                    'security_risk': self.security_risk,
-                    'residual_resource': self.residual_resource,
-                },
-                'reward': -50,  # 这个 reward 的设定不太合理
-                'done': True,
-                'info': {'residual_resource': self.residual_resource}
-            }
+            observation = (action, self.security_risk, self.residual_resource)
+            reward = -10
+            done = True
+            info = {'residual_resource': self.residual_resource}
+            return observation, reward, done, info
         """
         这里的问题是：如何进行攻击发生的判断：
         方案1：用攻击者发动攻击的概率 和 当前环境安全风险进行对比来确定是否发生攻击
@@ -121,22 +121,14 @@ class VehicularHoneypotEnv(gym.Env):
         print("attack_launched:", self.attack_launched)
         if self.attack_launched:
             if action == 0:
-                observation = {
-                    'prev_action': action,
-                    'security_risk': self.security_risk,
-                    'residual_resource': self.residual_resource
-                }
+                observation = (action, self.security_risk, self.residual_resource)
                 info = {"attacker_launched": self.attack_launched}
                 done = True
-                reward = -50
+                reward = -10
                 return observation, reward, done, info
             else:
-                reward = action
-                observation = {
-                    'prev_action': action,
-                    'security_risk': self.security_risk,
-                    'residual_resource': self.residual_resource
-                }
+                reward = action + self.security_risk * 10 # 增加基于安全风险的奖励机制
+                observation = (action, self.security_risk, self.residual_resource)
                 info = {"attacker_launched": self.attack_launched}
                 done = False
                 return observation, reward, done, info
@@ -145,12 +137,8 @@ class VehicularHoneypotEnv(gym.Env):
             if action == 0:
                 reward = 3
             else:
-                reward = -action
-            observation = {
-                'prev_action': action,
-                'security_risk': self.security_risk,
-                'residual_resource': self.residual_resource
-            }
+                reward = -1* (action + self.security_risk * 2)  # 基于安全风险和资源消耗的奖励
+            observation = (action, self.security_risk, self.residual_resource)
             info = {"attacker_launched": self.attack_launched}
             done = False
             return observation, reward, done, info
@@ -170,12 +158,8 @@ class VehicularHoneypotEnv(gym.Env):
         self.security_risk = 0
         self.residual_resource = 100
         # 重置上一个 action
-        self.prev_action = None
-        observation = {
-            'prev_action': self.prev_action,
-            'security_risk': self.security_risk,
-            'resource': self.residual_resource
-        }
+        self.prev_action = 0
+        observation = (self.prev_action, self.security_risk, self.residual_resource)
         return observation
 
     def render(self):
@@ -183,22 +167,4 @@ class VehicularHoneypotEnv(gym.Env):
 
     def close(self):
         pass
-
-
-# if __name__ == '__main__':
-#     env = VehicularHoneypotEnv()
-#     obs = env.reset()
-#     step = 0
-#     for t in range(10):
-#         step += 1
-#         print("\n")
-#         print("-----------step:", step)
-#         print("------")
-#         action = np.random.randint(4)
-#         print("action:",action)
-#         obs, reward, done, _ = env.step(action)
-#         #if done:
-#         #    break
-#         print(f"state : {obs}, reward : {reward}")
-#         print("是否结束:", done)
 
