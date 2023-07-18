@@ -1,4 +1,5 @@
 import gym
+import time
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import Dense
@@ -23,18 +24,20 @@ class ActorCriticPPO:
 
     def build_actor(self):
         inputs = tf.keras.Input(shape=(self.state_dim,))
-        x = Dense(64, activation='relu')(inputs)
-        x = Dense(64, activation='relu')(x)
+        x = Dense(500, activation='relu')(inputs)
+        x = Dense(250, activation='relu')(x)
+        x = Dense(120, activation='relu')(x)
         outputs = Dense(self.action_dim, activation='softmax')(x)
-        model = Model(inputs=inputs, outputs=outputs)
+        model = tf.keras.Model(inputs=inputs, outputs=outputs)
         return model
 
     def build_critic(self):
         inputs = tf.keras.Input(shape=(self.state_dim,))
-        x = Dense(64, activation='relu')(inputs)
-        x = Dense(64, activation='relu')(x)
+        x = Dense(500, activation='relu')(inputs)
+        x = Dense(250, activation='relu')(x)
+        x = Dense(120, activation='relu')(x)
         outputs = Dense(1)(x)
-        model = Model(inputs=inputs, outputs=outputs)
+        model = tf.keras.Model(inputs=inputs, outputs=outputs)
         return model
 
     def choose_action(self, state):
@@ -53,6 +56,7 @@ class ActorCriticPPO:
         return returns
 
     def train(self, episodes=1000):
+        start_time = time.time()
         rewards_history = []
         for episode in range(episodes):
             state = self.env.reset()
@@ -107,11 +111,15 @@ class ActorCriticPPO:
 
             print("Episode:", episode, "Total Reward:", total_reward)
 
+        end_time = time.time()
+        train_time = (end_time - start_time)%60
+        print(train_time)
         # 绘制奖励变化曲线
+        time.strftime("%Y-%m-%d %p %H:%M:%S", time.localtime())
         plt.plot(rewards_history)
         plt.xlabel('Episode')
         plt.ylabel('Total Reward')
-        plt.savefig('AC_PPO.png', dpi=300)
+        plt.savefig('img/AC_PPO-'+ time.strftime("%Y-%m-%d %p %H:%M:%S"+'.png', time.localtime()), dpi=300)
         plt.show()
 
 if __name__ == "__main__":
