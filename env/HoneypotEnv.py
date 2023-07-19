@@ -4,7 +4,7 @@ from gym import spaces
 import numpy as np
 
 class VehicularHoneypotEnv(gym.Env):
-    def __init__(self, render: bool = False):
+    def __init__(self, render: bool = False, noise_std=0.1):
         self.observation_space = spaces.Tuple((
             spaces.Discrete(4),  # defender上一次的行动
             spaces.Box(low=0, high=1, shape=(1,), dtype=np.float32),  # 车联网环境给的安全危险程度
@@ -18,23 +18,26 @@ class VehicularHoneypotEnv(gym.Env):
 
         # 车辆剩余资源、最大资源限制 和 资源下限
         self.residual_resource = 100  # 车辆剩余资源
-        self.resource_upper_bound = 100  # 车辆资源的上限
         self.resource_lower_bound = 10  # 车辆资源的下限
         self.prev_action = 0  # 上一次的行动
         self.attack_captured = False  # 攻击者是否被捕获
         self.attack_launched = False  # 攻击者是否发起攻击
 
+        self.noise_std = noise_std
+
     def step(self, action):
 
         # 判断 action 是否合法
         assert self.action_space.contains(action), f"Action {action} is invalid"
+        print("action:", action)
 
         # 防御者执行行动
         resource_consumption = action
 
         self.prev_action = action
 
-        self.residual_resource -= resource_consumption
+        self.residual_resource = self.residual_resource - resource_consumption
+        self.residual_resource -= self.residual_resource - 1
         print("residual_resource:", self.residual_resource)
 
         if self.residual_resource < self.resource_lower_bound:
@@ -45,7 +48,8 @@ class VehicularHoneypotEnv(gym.Env):
             return observation, reward, done, info
 
         # 随机均匀地产生当前的 security_risk 值
-        self.security_risk = np.random.uniform(0, 1)
+        #self.security_risk = np.random.normal(0.5, 0.1)
+        self.security_risk = np.random.uniform(0.1, 0.9)
         print("security_risk:", self.security_risk)
 
         # 确定攻击者是否发动攻击
@@ -53,17 +57,24 @@ class VehicularHoneypotEnv(gym.Env):
         print("attack_launched:", self.attack_launched)
         if self.attack_launched:
             if action == 0:
-                observation = (action, self.security_risk, self.residual_resource)
-                info = {"attacker_launched": self.attack_launched}
-                done = True
                 reward = -10
-                return observation, reward, done, info
             else:
-                reward = action + self.security_risk * 10  # 增加基于安全风险的奖励机制
-                observation = (action, self.security_risk, self.residual_resource)
-                info = {"attacker_launched": self.attack_launched}
-                done = False
-                return observation, reward, done, info
+                reward = action + self.security_risk * 10
+            observation = (action, self.security_risk, self.residual_resource)
+            info = {"attacker_launched": self.attack_launched}
+            done = False
+            return observation, reward, done, info
+                # observation = (action, self.security_risk, self.residual_resource)
+                # info = {"attacker_launched": self.attack_launched}
+                # done = True
+                # reward = -10
+                # return observation, reward, done, info
+            # else:
+            #     reward = action + self.security_risk * 10  # 增加基于安全风险的奖励机制
+            #     observation = (action, self.security_risk, self.residual_resource)
+            #     info = {"attacker_launched": self.attack_launched}
+            #     done = False
+            #     return observation, reward, done, info
         else:
             if action == 0:
                 reward = 3

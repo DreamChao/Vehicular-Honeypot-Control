@@ -25,8 +25,9 @@ class DQNAgent:
     def _build_model(self):
         # 创建神经网络，使用两层全连接层
         model = tf.keras.Sequential()
-        model.add(tf.keras.layers.Dense(64, input_dim=self.state_size, activation='relu'))
-        model.add(tf.keras.layers.Dense(64, activation='relu'))
+        model.add(tf.keras.layers.Dense(500, input_dim=self.state_size, activation='relu'))
+        model.add(tf.keras.layers.Dense(500, activation='relu'))
+        model.add(tf.keras.layers.Dense(500, activation='relu'))
         model.add(tf.keras.layers.Dense(self.action_size, activation='softmax'))
         model.compile(loss='mse', optimizer=tf.keras.optimizers.Adam(lr=self.learning_rate))
         return model
@@ -67,7 +68,7 @@ class DQNAgent:
     def save(self, name):
         self.model.save_weights(name)
 
-    def train(self, env, num_episodes=1000, max_steps=100):
+    def train(self, env, num_episodes=100, max_steps=10):
         for episode in range(num_episodes):
             state = env.reset()
             state = np.reshape(state, [1, self.state_size])
@@ -112,6 +113,6 @@ if __name__ == "__main__":
     done = False
     batch_size = 32
 
-    agent.train(env, num_episodes=10, max_steps=10)
+    agent.train(env, num_episodes=100, max_steps=10)
 
     agent.save("vehicular_honeypot_dqn.h5")

@@ -2,7 +2,7 @@ import gym
 import time
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Dense, BatchNormalization, Dropout
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import Model
 from env.VehicularHoneypotEnv import VehicularHoneypotEnv
@@ -24,18 +24,54 @@ class ActorCriticPPO:
 
     def build_actor(self):
         inputs = tf.keras.Input(shape=(self.state_dim,))
-        x = Dense(500, activation='relu')(inputs)
-        x = Dense(250, activation='relu')(x)
-        x = Dense(120, activation='relu')(x)
+        x = Dense(256, activation='sigmoid')(inputs)
+        x = BatchNormalization()(x)  # 添加批量归一化层
+
+        x = Dense(128, activation='sigmoid')(x)
+        x = BatchNormalization()(x)  # 添加批量归一化层
+
+        x = Dense(64, activation='sigmoid')(x)
+        x = BatchNormalization()(x)  # 添加批量归一化层
+
+        # x = Dense(500, activation='sigmoid')(inputs)
+        # x = BatchNormalization()(x)  # 添加批量归一化层
+        # x = Dropout(0.2)(x)
+        # x = Dense(500, activation='sigmoid')(x)
+        # x = BatchNormalization()(x)  # 添加批量归一化层
+        # x = Dropout(0.2)(x)
+        # x = Dense(500, activation='sigmoid')(inputs)
+        # x = BatchNormalization()(x)  # 添加批量归一化层
+        # x = Dropout(0.2)(x)
+        # x = Dense(500, activation='sigmoid')(x)
+        # x = BatchNormalization()(x)  # 添加批量归一化层
+        # x = Dropout(0.2)(x)
         outputs = Dense(self.action_dim, activation='softmax')(x)
         model = tf.keras.Model(inputs=inputs, outputs=outputs)
         return model
 
     def build_critic(self):
         inputs = tf.keras.Input(shape=(self.state_dim,))
-        x = Dense(500, activation='relu')(inputs)
-        x = Dense(250, activation='relu')(x)
-        x = Dense(120, activation='relu')(x)
+        x = Dense(256, activation='sigmoid')(inputs)
+        x = BatchNormalization()(x)  # 添加批量归一化层
+
+        x = Dense(128, activation='sigmoid')(x)
+        x = BatchNormalization()(x)  # 添加批量归一化层
+
+        x = Dense(64, activation='sigmoid')(x)
+        x = BatchNormalization()(x)  # 添加批量归一化层
+
+        # x = Dense(500, activation='sigmoid')(inputs)
+        # x = BatchNormalization()(x)  # 添加批量归一化层
+        # x = Dropout(0.2)(x)
+        # x = Dense(500, activation='sigmoid')(inputs)
+        # x = BatchNormalization()(x)  # 添加批量归一化层
+        # x = Dropout(0.2)(x)
+        # x = Dense(500, activation='sigmoid')(x)
+        # x = BatchNormalization()(x)  # 添加批量归一化层
+        # x = Dropout(0.2)(x)
+        # x = Dense(500, activation='sigmoid')(x)
+        # x = BatchNormalization()(x)  # 添加批量归一化层
+        # x = Dropout(0.2)(x)
         outputs = Dense(1)(x)
         model = tf.keras.Model(inputs=inputs, outputs=outputs)
         return model
@@ -55,7 +91,7 @@ class ActorCriticPPO:
         returns = (returns - np.mean(returns)) / (np.std(returns) + 1e-8)
         return returns
 
-    def train(self, episodes=1000):
+    def train(self, episodes=100):
         start_time = time.time()
         rewards_history = []
         for episode in range(episodes):
@@ -125,4 +161,4 @@ class ActorCriticPPO:
 if __name__ == "__main__":
     env = VehicularHoneypotEnv()
     agent = ActorCriticPPO(env)
-    agent.train(episodes=1000)
+    agent.train(episodes=100)
