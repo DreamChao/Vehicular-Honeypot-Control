@@ -8,6 +8,7 @@ import os
 import argparse
 import matplotlib.pyplot as plt
 import seaborn as sns
+import random
 from env.VehicularHoneypotEnv import VehicularHoneypotEnv
 
 
@@ -16,6 +17,7 @@ class Actor(nn.Module):
     def __init__(self, n_states, n_actions, hidden_dim=256):
         """ 初始化Actor网络，为全连接网络
         """
+        super(Actor, self).__init__()
         self.l1 = nn.Linear(n_states, hidden_dim)
         self.l2 = nn.Linear(hidden_dim, hidden_dim)
         self.l3 = nn.Linear(hidden_dim, n_actions)
@@ -29,6 +31,7 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, n_states, n_actions, hidden_dim=256):
+        super(Critic, self).__init__()
         self.l1 = nn.Linear(n_states + n_actions, 256)
         self.l2 = nn.Linear(hidden_dim, hidden_dim)
         self.l3 = nn.Linear(hidden_dim, 1)
@@ -78,7 +81,7 @@ class TD3(object):
         self.tau = cfg.tau
         self.sample_count = 0
         self.policy_freq = cfg.policy_freq
-        self.explore_steps = cfg.explore_steps
+        #self.explore_steps = cfg.explore_steps
         self.device = torch.device(cfg.device)
         self.n_actions = cfg.n_actions
         self.action_space = cfg.action_space
@@ -227,7 +230,7 @@ def env_agent_config(cfg):
     models = {"actor":Actor(n_states,n_actions,hidden_dim=cfg.actor_hidden_dim),"critic":Critic(n_states,n_actions, hidden_dim=cfg.critic_hidden_dim)}
     memory = ReplayBufferQue(cfg.buffer_size) # 创建经验池
     agent = TD3(cfg)
-    return env,agent
+    return env, agent
 
 class Config:
     def __init__(self):
